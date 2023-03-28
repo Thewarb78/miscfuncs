@@ -35,3 +35,27 @@
     # Return the new item's ID
     return $Response.d.Id
 }
+
+function Remove-AllSPListItems {
+    param(
+        [string]$ListUrl,
+        [string]$ListName
+    )
+
+    # Construct the REST API URL for getting all items in the list
+    $GetItemsUrl = "$ListUrl/_api/lists/getbytitle('$ListName')/items"
+
+    # Get the X-RequestDigest value from SharePoint
+    $ContextInfo = Get-SPContextInfo $ListUrl
+    $RequestDigest = $ContextInfo.GetContextWebInformation.FormDigestValue
+
+    # Call the REST API to get all items in the list
+    $Items = Invoke-RestMethod -Uri $GetItemsUrl -Method Get -ContentType "application/json;odata=verbose" -Headers @{ "X-RequestDigest" = $RequestDigest } -UseDefaultCredentials
+
+    # Loop through all items and delete them one by one
+    foreach ($Item in $Items.d.results) {
+        $DeleteUrl = "$ListUrl/_api/lists/getbytitle('$ListName')/items($($Item.Id))"
+        Invoke-RestMethod -Uri $DeleteUrl -Method Delete -ContentType "application/json;odata=verbose" -Headers @{ "X-RequestDigest" = $RequestDigest } -UseDefaultCredentials
+        Write-Host "Deleted item with ID $($Item.Id)" -ForegroundColor Green
+    }
+}
