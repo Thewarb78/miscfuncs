@@ -1,0 +1,73 @@
+<html>
+<head>
+    <title>Cert Report</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="jumbotron text-center">
+        <h1>Cert Report</h1>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <h2>Expiring Soon</h2>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Expiry</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expiringSoonBody">
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h2>Expired</h2>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Expiry</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expiredBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            var today = new Date();
+            var expiryDate = new Date(today);
+            expiryDate.setDate(today.getDate() + 30);
+            var expiryDateString = expiryDate.toISOString();
+            var restQuery = "/_api/web/lists/getbytitle('Certification')/items?$select=ID,Title,Expiry&$filter=Expiry le datetime'" + expiryDateString + "'";
+            $.ajax({
+                url: _spPageContextInfo.webAbsoluteUrl + restQuery,
+                type: "GET",
+                headers: {
+                    "accept": "application/json;odata=verbose",
+                },
+                success: function(data) {
+                    $.each(data.d.results, function(index, item) {
+                        var expiryDate = new Date(item.Expiry);
+                        if (expiryDate > today && expiryDate <= expiryDate) {
+                            $("#expiringSoonBody").append("<tr><td>" + item.ID + "</td><td>" + item.Title + "</td><td>" + item.Expiry + "</td></tr>");
+                        } else if (expiryDate <= today) {
+                            $("#expiredBody").append("<tr><td>" + item.ID + "</td><td>" + item.Title + "</td><td>" + item.Expiry + "</td></tr>");
+                        }
+                    });
+                },
+                error: function(error) {
+                    console.log(JSON.stringify(error));
+                }
+            });
+        });
+    </script>
+</body>
+</html>
