@@ -59,3 +59,35 @@ function Remove-AllSPListItems {
         Write-Host "Deleted item with ID $($Item.Id)" -ForegroundColor Green
     }
 }
+
+function Get-SPListItemDateValue {
+    param (
+        [string]$SiteUrl,
+        [string]$ListName,
+        [string]$DateColumnName,
+        [string]$Username,
+        [string]$Password
+    )
+
+    # Set up the credentials to access the SharePoint site
+    $secpasswd = ConvertTo-SecureString $Password -AsPlainText -Force
+    $cred = New-Object System.Management.Automation.PSCredential ($Username, $secpasswd)
+
+    # Set up the REST API endpoint to retrieve all items in the list
+    $endpointUrl = "$SiteUrl/_api/web/lists/getbytitle('$ListName')/items"
+
+    # Send a GET request to the endpoint and retrieve the response
+    $headers = @{
+        "Accept" = "application/json;odata=verbose"
+    }
+    $response = Invoke-RestMethod -Uri $endpointUrl -Credential $cred -Headers $headers -Method Get
+
+    # Loop through each item in the response and output the value in the date column,
+    # along with the item ID and title
+    foreach ($item in $response.d.results) {
+        $dateValue = $item[$DateColumnName]
+        $itemId = $item.Id
+        $title = $item.Title
+        Write-Output "Item ID: $itemId, Title: $title, Date Value: $dateValue"
+    }
+}
