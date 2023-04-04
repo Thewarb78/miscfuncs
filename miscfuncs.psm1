@@ -91,3 +91,41 @@ function Get-SPListItemDateValue {
         Write-Output "Item ID: $itemId, Title: $title, Date Value: $dateValue"
     }
 }
+
+function Update-SPListItemDate {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$SiteUrl,
+        [Parameter(Mandatory=$true)]
+        [string]$ListName,
+        [Parameter(Mandatory=$true)]
+        [string]$Title,
+        [Parameter(Mandatory=$true)]
+        [string]$DateColumnName,
+        [Parameter(Mandatory=$true)]
+        [datetime]$NewDate,
+        [Parameter(Mandatory=$true)]
+        [System.Management.Automation.PSCredential]$Credential
+    )
+    $EndpointUrl = "$SiteUrl/_api/web/lists/getbytitle('$ListName')/items?\$filter=Title eq '$Title'"
+    $Header = @{
+        'Authorization' = 'Bearer ' + $Credential.GetNetworkCredential().Password
+        'Accept' = 'application/json;odata=verbose'
+        'Content-Type' = 'application/json;odata=verbose'
+    }
+    $items = Invoke-RestMethod -Uri $EndpointUrl -Headers $Header -Method Get
+    foreach ($item in $items.d.results) {
+        $itemId = $item.Id
+        $itemUrl = $item.__metadata.uri
+        $itemType = $item.__metadata.type
+        $itemETag = $item.__metadata.etag
+        $body = @{
+            '__metadata' = @{
+                'type' = $itemType
+            }
+            $DateColumnName = $NewDate.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        } | ConvertTo-Json -Depth 1
+        Invoke-RestMethod -Uri $itemUrl -Headers $Header -Method Merge -Body $body -ContentType "application/json;odata=verbose" -IfMatch $itemETag
+        Write-Output "Item ID: $itemId, Title: $Title, Date Column ($DateColumnName) updated to: $NewDate"
+    }
+}
