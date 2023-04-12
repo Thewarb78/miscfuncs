@@ -201,15 +201,15 @@ function New-SPDocumentSet {
     $formDigestValue = (Get-SPFormDigest -SiteUrl $SiteUrl -Credential $Credential).d.GetContextWebInformation.FormDigestValue
 
     # Create the document set
-    $createDocSetUrl = "$SiteUrl/_api/web/folders"
-    $body = @{
-        "__metadata" = @{
-            "type" = "SP.Folder"
-        }
-        "ServerRelativeUrl" = "$folderServerRelativeUrl/$DocumentSetName"
-    } | ConvertTo-Json
+    $createDocSetUrl = "$SiteUrl/_api/web/GetFolderByServerRelativeUrl('$folderServerRelativeUrl')/files/AddUsingPath(DecodedUrl='$DocumentSetName',overwrite=true)"
+    $headers = @{
+        "Accept" = "application/json; odata=verbose";
+        "X-RequestDigest" = $formDigestValue;
+        "Slug" = "$folderServerRelativeUrl/$DocumentSetName|$ContentTypeId";
+        "User-Agent" = $UserAgent
+    }
 
-    $createDocSetResponse = Invoke-RestMethod -Uri $createDocSetUrl -Headers @{ "Accept" = "application/json; odata=verbose"; "X-RequestDigest" = $formDigestValue; "Content-Type" = "application/json; odata=verbose" } -Credential $Credential -Method Post -Body $body
+    $createDocSetResponse = Invoke-RestMethod -Uri $createDocSetUrl -Headers $headers -Credential $Credential -Method Post
 
     # Set the properties for the document set
     $itemUrl = "$SiteUrl/_api/web/lists(guid'$listId')/items(" + $createDocSetResponse.d.Id + ")"
@@ -217,7 +217,6 @@ function New-SPDocumentSet {
         "__metadata" = @{
             "type" = $createDocSetResponse.d['__metadata'].type
         }
-        "ContentTypeId" = $ContentTypeId
         "KeyBlah" = $KeyBlah
         "DealBlah" = $DealBlah
     } | ConvertTo-Json
