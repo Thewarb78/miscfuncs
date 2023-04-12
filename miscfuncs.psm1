@@ -200,53 +200,39 @@ function New-SPDocumentSet {
     # Get the form digest value
     $formDigestValue = (Get-SPFormDigest -SiteUrl $SiteUrl -Credential $Credential).d.GetContextWebInformation.FormDigestValue
 
-    # Create the document set and set the properties
-    $createDocSetUrl = "$SiteUrl/_api/web/lists(guid'$listId')/AddValidateUpdateItemUsingPath"
+    # Create the document set
+    $createDocSetUrl = "$SiteUrl/_api/web/folders"
     $body = @{
-        "listItemCreateInfo" = @{
-            "__metadata" = @{
-                "type" = "SP.ListItemCreationInformationUsingPath"
-            }
-            "FolderPath" = @{
-                "__metadata" = @{
-                    "type" = "SP.ResourcePath"
-                }
-                "DecodedUrl" = "$folderServerRelativeUrl"
-            }
+        "__metadata" = @{
+            "type" = "SP.Folder"
         }
-        "formValues" = @(
-            @{
-                "FieldName" = "ContentTypeId"
-                "FieldValue" = $ContentTypeId
-            },
-            @{
-                "FieldName" = "Title"
-                "FieldValue" = $DocumentSetName
-            },
-            @{
-                "FieldName" = "Name"
-                "FieldValue" = $DocumentSetName
-            },
-            @{
-                "FieldName" = "KeyBlah"
-                "FieldValue" = $KeyBlah
-            },
-            @{
-                "FieldName" = "DealBlah"
-                "FieldValue" = $DealBlah
-            }
-        )
-        "bNewDocumentUpdate" = $true
+        "ServerRelativeUrl" = "$folderServerRelativeUrl/$DocumentSetName"
+    } | ConvertTo-Json
+
+    $createDocSetResponse = Invoke-RestMethod -Uri $createDocSetUrl -Headers @{ "Accept" = "application/json; odata=verbose"; "X-RequestDigest" = $formDigestValue; "Content-Type" = "application/json; odata=verbose" } -Credential $Credential -Method Post -Body $body
+
+    # Set the properties for the document set
+    $itemUrl = "$SiteUrl/_api/web/lists(guid'$listId')/items(" + $createDocSetResponse.d.Id + ")"
+    $itemPayload = @{
+        "__metadata" = @{
+            "type" = $createDocSetResponse.d['__metadata'].type
+        }
+        "ContentTypeId" = $ContentTypeId
+        "KeyBlah" = $KeyBlah
+        "DealBlah" = $DealBlah
     } | ConvertTo-Json
 
     $headers = @{
         "Accept" = "application/json; odata=verbose";
         "X-RequestDigest" = $formDigestValue;
         "Content-Type" = "application/json; odata=verbose";
+        "IF-MATCH" = "*";
+        "X-HTTP-Method" = "MERGE";
         "User-Agent" = $UserAgent
     }
 
-    $createDocSetResponse = Invoke-RestMethod -Uri $createDocSetUrl -Headers $headers -Credential $Credential -Method Post -Body $body
+    Invoke-RestMethod -Uri $itemUrl -Headers $headers -Credential $Credential -Method Post -Body $itemPayload
+    Write-Host "Document set '$DocumentSetName' created and properties updated successfully." -ForegroundColor Green
 }
 
 function Remove-SPDocumentSet {
