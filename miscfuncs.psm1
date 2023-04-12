@@ -174,3 +174,140 @@ function Update-SPListItemDate {
         Write-Output "Item ID: $itemId, Title: $Title, Date Column ($DateColumnName) updated to: $NewDate"
     }
 }
+
+function New-SPDocumentSet {
+    param (
+        [Parameter(Mandatory=$true)][string]$SiteUrl,
+        [Parameter(Mandatory=$true)][string]$ListName,
+        [Parameter(Mandatory=$true)][string]$DocumentSetName,
+        [Parameter(Mandatory=$true)][string]$KeyBlah,
+        [Parameter(Mandatory=$true)][string]$DealBlah,
+        [Parameter(Mandatory=$true)][string]$ContentTypeId,
+        [System.Management.Automation.PSCredential]$Credential,
+        [string]$UserAgent = "PowerShell"
+    )
+
+    # Get the list details
+    $listUrl = "$SiteUrl/_api/web/lists/getbytitle('$ListName')"
+    $listResponse = Invoke-RestMethod -Uri $listUrl -Headers @{ "Accept" = "application/json; odata=verbose" } -Credential $Credential -Method Get
+    $listId = $listResponse.d.Id
+
+    # Get the parent folder for the document set
+    $folderUrl = "$SiteUrl/_api/web/lists(guid'$listId')/rootfolder"
+    $folderResponse = Invoke-RestMethod -Uri $folderUrl -Headers @{ "Accept" = "application/json; odata=verbose" } -Credential $Credential -Method Get
+    $folderServerRelativeUrl = $folderResponse.d.ServerRelativeUrl
+
+    # Get the form digest value
+    $formDigestValue = (Get-SPFormDigest -SiteUrl $SiteUrl -Credential $Credential).d.GetContextWebInformation.FormDigestValue
+
+    # Create the document set and set the properties
+    $createDocSetUrl = "$SiteUrl/_api/web/lists(guid'$listId')/AddValidateUpdateItemUsingPath"
+    $body = @{
+        "listItemCreateInfo" = @{
+            "__metadata" = @{
+                "type" = "SP.ListItemCreationInformationUsingPath"
+            }
+            "FolderPath" = @{
+                "__metadata" = @{
+                    "type" = "SP.ResourcePath"
+                }
+                "DecodedUrl" = "$folderServerRelativeUrl"
+            }
+        }
+        "formValues" = @(
+            @{
+                "FieldName" = "ContentTypeId"
+                "FieldValue" = $ContentTypeId
+            },
+            @{
+                "FieldName" = "Title"
+                "FieldValue" = $DocumentSetName
+            },
+            @{
+                "FieldName" = "Name"
+                "FieldValue" = $DocumentSetName
+            },
+            @{
+                "FieldName" = "KeyBlah"
+                "FieldValue" = $KeyBlah
+            },
+            @{
+                "FieldName" = "DealBlah"
+                "FieldValue" = $DealBlah
+            }
+        )
+        "bNewDocumentUpdate" = $true
+    } | ConvertTo-Json
+
+    $headers = @{
+        "Accept" = "application/json; odata=verbose";
+        "X-RequestDigest" = $formDigestValue;
+        "Content-Type" = "application/json; odata=verbose";
+        "User-Agent" = $UserAgent
+    }
+
+    $createDocSetResponse = Invoke-RestMethod -Uri $createDocSetUrl -Headers $headers -Credential $Credential -Method Post -Body $body
+}
+
+function Remove-SPDocumentSet {
+    param (
+        [Parameter(Mandatory=$true)][string]$SiteUrl,
+        [Parameter(Mandatory=$true)][string]$ListName,
+        [Parameter(Mandatory=$true)][string]$DocumentSetName,
+        [System.Management.Automation.PSCredential]$Credential,
+        [string]$UserAgent = "PowerShell"
+    )
+
+    # Get the list details
+    $listUrl = "$SiteUrl/_api/web/lists/getbytitle('$ListName')"
+    $listResponse = Invoke-RestMethod -Uri $listUrl -Headers @{ "Accept" = "application/json; odata=verbose" } -Credential $Credential -Method Get
+    $listId = $listResponse.d.Id
+
+    # Get the document set details
+    $docSetUrl = "$SiteUrl/_api/web/lists(guid'$listId')/items?`$filter=ContentTypeId%20ne%20null%20and%20Title%20eq%20'$DocumentSetName'"
+    $docSetResponse = Invoke-RestMethod -Uri $docSetUrl -Headers @{ "Accept" = "application/json; odata=verbose" } -Credential $Credential -Method Get
+
+    if ($docSetResponse.d.results.Count -eq 0) {
+        Write-Host "Document set not found." -ForegroundColor Red
+        return
+    }
+
+    $docSetId = $docSetResponse.d.results[0].Id
+
+    # Get the form digest value
+    $formDigestValue = (Get-SPFormDigest -SiteUrl $SiteUrl -Credential $Credential).d.GetContextWebInformation.FormDigestValue
+
+    # Delete the document set
+    $deleteDocSetUrl = "$SiteUrl/_api/web/lists(guid'$listId')/items($docSetId)"
+    $headers = @{
+        "Accept" = "application/json; odata=verbose";
+        "X-RequestDigest" = $formDigestValue;
+        "IF-MATCH" = "*";
+        "X-HTTP-Method" = "DELETE";
+        "User-Agent" = $UserAgent
+    }
+
+    Invoke-RestMethod -Uri $deleteDocSetUrl -Headers $headers -Credential $Credential -Method Post
+    Write-Host "Document set '$DocumentSetName' deleted successfully." -ForegroundColor Green
+}
+
+function Get-SPFormDigest {
+    param (
+        [Parameter(Mandatory=$true)][string]$SiteUrl,
+        [string]$AccessToken
+    )
+
+    $formDigestUrl = "$SiteUrl/_api/contextinfo"
+
+    if ($null -eq $AccessToken) {
+        $AccessToken = Get-SPAccessToken -SiteUrl $SiteUrl
+    }
+
+    $headers = @{
+        "Accept" = "application/json; odata=verbose";
+        "Authorization" = "Bearer $AccessToken"
+    }
+
+    $response = Invoke-RestMethod -Uri $formDigestUrl -Headers $headers -Method Post
+    return $response
+}
