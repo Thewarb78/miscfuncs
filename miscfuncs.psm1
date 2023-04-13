@@ -381,3 +381,68 @@ function New-SPDocumentSet {
 
     Write-Host "Document set '$DocumentSetName' created with content type '$ContentTypeId' and properties updated successfully." -ForegroundColor Green
 }
+
+function New-SPDocumentSet {
+    param (
+        [Parameter(Mandatory=$true)][string]$SiteUrl,
+        [Parameter(Mandatory=$true)][string]$ListName,
+        [Parameter(Mandatory=$true)][string]$DocumentSetName,
+        [Parameter(Mandatory=$true)][string]$KeyBlah,
+        [Parameter(Mandatory=$true)][string]$DealBlah,
+        [Parameter(Mandatory=$true)][string]$ContentTypeId,
+        [System.Management.Automation.PSCredential]$Credential,
+        [string]$UserAgent = "PowerShell"
+    )
+
+    # Custom WebRequestCreator for setting the UserAgent
+    Add-Type -TypeDefinition @"
+        using System;
+        using System.Net;
+        public class CustomWebRequestCreator : IWebRequestCreate
+        {
+            public WebRequest Create(Uri uri)
+            {
+                HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(uri);
+                webRequest.UserAgent = "$UserAgent";
+                return webRequest;
+            }
+        }
+"@
+
+    # Register custom WebRequestCreator
+    [System.Net.WebRequest]::RegisterPrefix("http://", [CustomWebRequestCreator]::new())
+    [System.Net.WebRequest]::RegisterPrefix("https://", [CustomWebRequestCreator]::new())
+
+    # Load SharePoint CSOM Assemblies
+    Add-Type -Path "C:\Program Files\Common Files\microsoft shared\Web Server Extensions\16\ISAPI\Microsoft.SharePoint.Client.dll"
+    Add-Type -Path "C:\Program Files\Common Files\microsoft shared\Web Server Extensions\16\ISAPI\Microsoft.SharePoint.Client.Runtime.dll"
+
+    # Client Context
+    $ctx = New-Object Microsoft.SharePoint.Client.ClientContext($SiteUrl)
+    $ctx.Credentials = New-Object Microsoft.SharePoint.Client.NetworkCredential($Credential.UserName, $Credential.Password, $Credential.Domain)
+
+    # Get the list and content type
+    $list = $ctx.Web.Lists.GetByTitle($ListName)
+    $ctx.Load($list)
+    $ctx.Load($list.RootFolder)
+    $ctx.ExecuteQuery()
+
+    $contentType = $ctx.Web.ContentTypes.GetById($ContentTypeId)
+    $ctx.Load($contentType)
+    $ctx.ExecuteQuery()
+
+    # Create document set
+    $docSetFolder = [Microsoft.SharePoint.Client.Folder]::CreateFolderDirect($ctx, $list.RootFolder, $DocumentSetName)
+    $ctx.Load($docSetFolder)
+    $ctx.ExecuteQuery()
+
+    # Update properties and content type
+    $docSetItem = $docSetFolder.ListItemAllFields
+    $docSetItem["ContentTypeId"] = $ContentTypeId
+    $docSetItem["KeyBlah"] = $KeyBlah
+    $docSetItem["DealBlah"] = $DealBlah
+    $docSetItem.Update()
+    $ctx.ExecuteQuery()
+
+    Write-Host "Document set '$DocumentSetName' created with content type '$ContentTypeId' and properties updated successfully." -ForegroundColor Green
+}
