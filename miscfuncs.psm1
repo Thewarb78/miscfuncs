@@ -446,3 +446,44 @@ function New-SPDocumentSet {
 
     Write-Host "Document set '$DocumentSetName' created with content type '$ContentTypeId' and properties updated successfully." -ForegroundColor Green
 }
+
+function New-SPDocumentSet {
+    param (
+        [Parameter(Mandatory=$true)][string]$SiteUrl,
+        [Parameter(Mandatory=$true)][string]$ListName,
+        [Parameter(Mandatory=$true)][string]$DocumentSetName,
+        [Parameter(Mandatory=$true)][string]$KeyBlah,
+        [Parameter(Mandatory=$true)][string]$DealBlah,
+        [Parameter(Mandatory=$true)][string]$ContentTypeId,
+        [System.Management.Automation.PSCredential]$Credential,
+        [string]$UserAgent = "PowerShell"
+    )
+
+    $FormDigestValue = Get-SPFormDigest -SiteUrl $SiteUrl -Credential $Credential
+
+    $ListUrl = $SiteUrl + "/_api/web/lists/GetByTitle('" + $ListName + "')"
+    $ListItemsUrl = $SiteUrl + "/_api/web/lists/GetByTitle('" + $ListName + "')/items"
+
+    $Headers = @{
+        "Accept" = "application/json;odata=verbose"
+        "Content-Type" = "application/json;odata=verbose"
+        "X-RequestDigest" = $FormDigestValue
+        "UserAgent" = $UserAgent
+    }
+
+    $DocumentSetFolderUrl = $SiteUrl + "/_api/web/folders/AddUsingPath(decodedurl='" + $ListName + "/" + $DocumentSetName + "',overwrite=true,url='')"
+    $Response = Invoke-WebRequest -Uri $DocumentSetFolderUrl -Method Post -Headers $Headers -Credential $Credential
+
+    $FolderId = (ConvertFrom-Json $Response.Content).d.Id
+    $UpdateUrl = $SiteUrl + "/_api/web/lists/GetByTitle('" + $ListName + "')/items(" + $FolderId + ")"
+    $UpdatePayload = @{
+        "__metadata" = @{
+            "type" = "SP.Data." + $ListName + "ListItem"
+        }
+        "ContentTypeId" = $ContentTypeId
+        "KeyBlah" = $KeyBlah
+        "DealBlah" = $DealBlah
+    } | ConvertTo-Json
+
+    Invoke-WebRequest -Uri $UpdateUrl -Method Post -Headers $Headers -Body $UpdatePayload -Credential $Credential
+}
