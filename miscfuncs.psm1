@@ -332,3 +332,52 @@ function New-SPDocumentSet {
 
     Write-Host "Document set '$DocumentSetName' created with content type '$ContentTypeId' and properties updated successfully." -ForegroundColor Green
 }
+
+function New-SPDocumentSet {
+    param (
+        [Parameter(Mandatory=$true)][string]$SiteUrl,
+        [Parameter(Mandatory=$true)][string]$ListName,
+        [Parameter(Mandatory=$true)][string]$DocumentSetName,
+        [Parameter(Mandatory=$true)][string]$KeyBlah,
+        [Parameter(Mandatory=$true)][string]$DealBlah,
+        [Parameter(Mandatory=$true)][string]$ContentTypeId,
+        [System.Management.Automation.PSCredential]$Credential
+    )
+
+    # Load SharePoint CSOM Assemblies
+    Add-Type -Path "C:\Program Files\Common Files\microsoft shared\Web Server Extensions\16\ISAPI\Microsoft.SharePoint.Client.dll"
+    Add-Type -Path "C:\Program Files\Common Files\microsoft shared\Web Server Extensions\16\ISAPI\Microsoft.SharePoint.Client.Runtime.dll"
+    Add-Type -Path "C:\Program Files\Common Files\microsoft shared\Web Server Extensions\16\ISAPI\Microsoft.SharePoint.Client.DocumentManagement.dll"
+
+    # Client Context
+    $ctx = New-Object Microsoft.SharePoint.Client.ClientContext($SiteUrl)
+    $ctx.Credentials = New-Object Microsoft.SharePoint.Client.SharePointOnlineCredentials($Credential.UserName, $Credential.Password)
+
+    # Get the list and content type
+    $list = $ctx.Web.Lists.GetByTitle($ListName)
+    $ctx.Load($list)
+    $ctx.Load($list.RootFolder)
+    $ctx.ExecuteQuery()
+
+    $contentType = $ctx.Web.ContentTypes.GetById($ContentTypeId)
+    $ctx.Load($contentType)
+    $ctx.ExecuteQuery()
+
+    # Create document set
+    $docSetCreateInfo = New-Object Microsoft.SharePoint.Client.DocumentSet.DocumentSetCreateInfo
+    $docSetCreateInfo.Path = $list.RootFolder.ServerRelativeUrl
+    $docSetCreateInfo.Title = $DocumentSetName
+    $docSetCreateInfo.DocumentSetTemplateId = $contentType.Id
+
+    $newDocSet = [Microsoft.SharePoint.Client.DocumentSet.DocumentSet]::Create($ctx, $list.RootFolder, $docSetCreateInfo)
+    $ctx.Load($newDocSet)
+    $ctx.ExecuteQuery()
+
+    # Update properties
+    $newDocSet.ListItemAllFields["KeyBlah"] = $KeyBlah
+    $newDocSet.ListItemAllFields["DealBlah"] = $DealBlah
+    $newDocSet.ListItemAllFields.Update()
+    $ctx.ExecuteQuery()
+
+    Write-Host "Document set '$DocumentSetName' created with content type '$ContentTypeId' and properties updated successfully." -ForegroundColor Green
+}
