@@ -296,3 +296,39 @@ function Get-SPFormDigest {
     $response = Invoke-RestMethod -Uri $formDigestUrl -Headers $headers -Method Post
     return $response
 }
+
+function New-SPDocumentSet {
+    param (
+        [Parameter(Mandatory=$true)][string]$SiteUrl,
+        [Parameter(Mandatory=$true)][string]$ListName,
+        [Parameter(Mandatory=$true)][string]$DocumentSetName,
+        [Parameter(Mandatory=$true)][string]$KeyBlah,
+        [Parameter(Mandatory=$true)][string]$DealBlah,
+        [Parameter(Mandatory=$true)][string]$ContentTypeId,
+        [System.Management.Automation.PSCredential]$Credential,
+        [string]$UserAgent = "PowerShell"
+    )
+
+    # Get the form digest value
+    $formDigestValue = (Get-SPFormDigest -SiteUrl $SiteUrl -Credential $Credential).d.GetContextWebInformation.FormDigestValue
+
+    # Create the document set
+    $createDocSetUrl = "$SiteUrl/_vti_bin/listdata.svc/$ListName"
+    $headers = @{
+        "Accept" = "application/json";
+        "X-RequestDigest" = $formDigestValue;
+        "Content-Type" = "application/json";
+        "User-Agent" = $UserAgent
+    }
+
+    $body = @{
+        "ContentTypeID" = $ContentTypeId
+        "Path" = "/$ListName/$DocumentSetName"
+        "KeyBlah" = $KeyBlah
+        "DealBlah" = $DealBlah
+    } | ConvertTo-Json
+
+    $createDocSetResponse = Invoke-RestMethod -Uri $createDocSetUrl -Headers $headers -Credential $Credential -Method Post -Body $body
+
+    Write-Host "Document set '$DocumentSetName' created with content type '$ContentTypeId' and properties updated successfully." -ForegroundColor Green
+}
