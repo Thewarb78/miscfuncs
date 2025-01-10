@@ -19,12 +19,15 @@ foreach ($webAppUrl in $webAppsToBackup) {
         # Get the web application object
         $webApp = Get-SPWebApplication -Identity $webAppUrl
 
-        # Iterate through all zones for the web application
-        foreach ($zone in $webApp.IisSettings.Keys) {
+        # Filter out empty or null keys
+        $validZones = $webApp.IisSettings.Keys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+        # Iterate through valid zones
+        foreach ($zone in $validZones) {
             $iisSettings = $webApp.IisSettings[$zone]
 
             # Get the path to the web.config file for this zone
-            $webConfigPath = Join-Path $iisSettings.PhysicalDirectory "web.config"
+            $webConfigPath = Join-Path $iisSettings.Path.FullName "web.config"
 
             if (Test-Path -Path $webConfigPath) {
                 # Create a backup file name with the zone included
