@@ -1,5 +1,5 @@
-# Specify the search term
-$searchTerm = "your_search_string"
+# Specify the search term with wildcards
+$searchTerm = "*your_search_string*"
 
 # Specify the registry root keys to search
 $rootKeys = @("HKLM:\", "HKCU:\", "HKCR:\", "HKU:\", "HKCC:\")
@@ -11,7 +11,7 @@ foreach ($rootKey in $rootKeys) {
         Get-ChildItem -Path $rootKey -Recurse -ErrorAction SilentlyContinue |
         ForEach-Object {
             # Search for the key name
-            if ($_ -match $searchTerm) {
+            if ($_.PSPath -like $searchTerm) {
                 Write-Host "Found in Key: $($_.PSPath)"
             }
 
@@ -19,7 +19,7 @@ foreach ($rootKey in $rootKeys) {
             Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue |
             ForEach-Object {
                 $_.PSObject.Properties | ForEach-Object {
-                    if ($_.Value -match $searchTerm) {
+                    if ($_.Value -like $searchTerm) {
                         Write-Host "Found in Key: $($_.PSPath) - Value: $($_.Name) = $($_.Value)"
                     }
                 }
