@@ -1,0 +1,25 @@
+# Define the group name
+$groupName = "YourGroupNameHere" # Replace with the group name you want to query
+
+# Create a Global Catalog searcher
+$searcher = New-Object DirectoryServices.DirectorySearcher
+$searcher.SearchRoot = [ADSI]"GC://"
+$searcher.Filter = "(&(objectCategory=group)(cn=$groupName))" # Filter for the specific group
+$searcher.PropertiesToLoad.Add("member") | Out-Null
+
+# Perform the search
+$result = $searcher.FindOne()
+
+if ($result -ne $null) {
+    $members = $result.Properties["member"]
+    if ($members.Count -gt 0) {
+        Write-Host "Group '$groupName' has the following members:"
+        foreach ($member in $members) {
+            Write-Host $member
+        }
+    } else {
+        Write-Host "Group '$groupName' has no members."
+    }
+} else {
+    Write-Host "Group '$groupName' not found in the Global Catalog."
+}
